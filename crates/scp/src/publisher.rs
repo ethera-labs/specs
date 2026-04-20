@@ -1,6 +1,6 @@
 use std::{collections::HashMap, sync::Mutex};
 
-use compose_spec::{ChainId, DecisionState, Instance, InstanceId};
+use ethera_spec::{ChainId, DecisionState, Instance, InstanceId};
 use thiserror::Error;
 use tracing::info;
 
@@ -133,7 +133,7 @@ impl<N: PublisherNetwork> PublisherInstance<N> {
 mod tests {
     use std::sync::Arc;
 
-    use compose_spec::{TransactionRequest, XtRequest};
+    use ethera_spec::{TransactionRequest, XtRequest};
 
     use super::*;
 

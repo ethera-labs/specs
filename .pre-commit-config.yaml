@@ -1,4 +1,4 @@
-# Pre-commit hooks configuration for Compose Protocol
+# Pre-commit hooks configuration for Ethera Spec
 # Install: brew install pre-commit && pre-commit install
 # Run manually: pre-commit run --all-files
 # Update hooks: pre-commit autoupdate
@@ -36,14 +36,14 @@ repos:
     hooks:
       - id: cargo-fmt
         name: cargo fmt
-        entry: bash -c 'cd compose && cargo fmt --all -- --check'
+        entry: cargo fmt --all -- --check
         language: system
         types: [rust]
         pass_filenames: false
 
       - id: cargo-clippy
         name: cargo clippy
-        entry: bash -c 'cd compose && cargo clippy --workspace --all-targets -- -D warnings'
+        entry: cargo clippy --workspace --all-targets -- -D warnings
         language: system
         types: [rust]
         pass_filenames: false

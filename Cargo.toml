@@ -10,10 +10,10 @@ license = "MIT"
 
 [workspace.dependencies]
 # Internal crates
-compose-spec = { path = "crates/compose" }
-compose-spec-proto = { path = "crates/proto" }
-compose-spec-scp = { path = "crates/scp" }
-compose-spec-sbcp = { path = "crates/sbcp" }
+ethera-spec = { path = "crates/ethera" }
+ethera-spec-proto = { path = "crates/proto" }
+ethera-spec-scp = { path = "crates/scp" }
+ethera-spec-sbcp = { path = "crates/sbcp" }
 
 # External dependencies
 prost = "0.13"

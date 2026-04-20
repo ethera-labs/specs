@@ -1,14 +1,14 @@
 [package]
-name = "compose-spec-proto"
+name = "ethera-spec-proto"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
-description = "Protobuf wire types for the Compose protocol"
+description = "Protobuf wire types for the Ethera protocol"
 publish = false
 
 [dependencies]
-compose-spec.workspace = true
+ethera-spec.workspace = true
 prost.workspace = true
 
 [lints]

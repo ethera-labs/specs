@@ -3,7 +3,7 @@ use std::{
     ops::{Add, Sub},
 };
 
-use compose_spec::{BlockHash, PeriodId, StateRoot, SuperblockHash, SuperblockNumber};
+use ethera_spec::{BlockHash, PeriodId, StateRoot, SuperblockHash, SuperblockNumber};
 
 /// Block number within a rollup chain.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, PartialOrd, Ord)]

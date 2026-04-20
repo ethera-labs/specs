@@ -1,4 +1,4 @@
-use compose_spec::{ChainId, EthAddress, SessionId};
+use ethera_spec::{ChainId, EthAddress, SessionId};
 
 /// Header identifying a mailbox message exchanged between sequencers.
 #[derive(Debug, Clone, PartialEq, Eq)]

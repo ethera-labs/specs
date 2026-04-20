@@ -1,6 +1,7 @@
 # Superblock Construction Protocol (SBCP)
 
 This document specifies SBCP, which has as objectives:
+
 1. The orchestration of scheduling and execution of composability instances.
 2. The progression of the L1 common settlement contract.
 
@@ -8,7 +9,7 @@ To achieve (1), the publisher will have a queue of requests and
 will initialize them such that a rollup is never part of two different
 instances at the same time.
 
-To achieve (2), the publisher will organize time into *periods*,
+To achieve (2), the publisher will organize time into _periods_,
 such that, once a period ends, it will trigger the settlement pipeline
 for proving the activity during the ended period.
 Once the pipeline finishes successfully, the publisher will
@@ -21,7 +22,7 @@ the state updates.
 
 Note that the SCP and settlement protocols are used as building blocks for SBCP.
 
-![sbcp](images/sbcp/sbcp.png)
+![SBCP](images/sbcp/sbcp.png)
 
 > [!TIP]
 > If you prefer to first read an informal intuition explanation about the protocol,
@@ -44,30 +45,34 @@ Note that the SCP and settlement protocols are used as building blocks for SBCP.
 ## Comparison to V1
 
 This version intends to solve issues with SBCP v1 in the following ways:
+
 - Remove the SBCP v1 tight "slot" coupling (`StartSlot` and `RequestSeal` messages).
 Now, rollups can have independent block times.
-- Define a *superblock* concept aligned with settlement.
-While settlement was producing a *superblock* every ~1 hour, according to its own rules,
-SBCP v1 was using another concept of a *superblock*, which was produced every 12 seconds. 
+- Define a _superblock_ concept aligned with settlement.
+While settlement was producing a _superblock_ every ~1 hour, according to its own rules,
+SBCP v1 was using another concept of a _superblock_, which was produced every 12 seconds.
 - Allow parallel composability instances execution for disjoint sets of participating chains,
 which was strictly sequential in SBCP v1.
 - Align rollback logic to failure of the proof pipeline.
-In contrast, V1 could roll back every 12 seconds, due to temporary bad network conditions. 
+In contrast, V1 could roll back every 12 seconds, due to temporary bad network conditions.
 - Allow rollups to keep sovereignty over the DA layer instead of making the SP responsible for it.
 
 ## System Model
 
 **Actors and roles**:
+
 - **Shared Publisher (SP)**: the coordinator that schedules composability instance
 and triggers period update and the settlement pipeline.
 - **Native Sequencers**: one per rollup, who builds L2 blocks at a self-chosen frequency,
 participates in composability when instructed, and produces proofs about its blocks and mailbox activity.
 
 **Communication**:
+
 - Authenticated, partially synchronous channels between any two actors.
 
 **Fault model**:
-- Crash faults for sequencers, while the SP must be live to guarantee termination. 
+
+- Crash faults for sequencers, while the SP must be live to guarantee termination.
 - Byzantine misbehavior is mitigated by ZK settlement checks (mailbox consistency, range/aggregation proofs)
 and by protocol enforcement (e.g., mailbox contract),
 though it's not covered here and should be treated in a later version.
@@ -75,13 +80,15 @@ though it's not covered here and should be treated in a later version.
 ## Properties
 
 **Safety**
+
 - **Agreement**: All correct processes that finalize a superblock number $N$ agree on the same superblock object for $N$, read from L1.
 - **Monotonicity**: Finalized superblocks form a single chain, each referencing the previous via parent hash, with monotonically increasing superblock numbers.
-- **Composability Consistency**: For every ended period, every pair of chains agree on the same **ordered** set of successful composability instances that both participated. 
+- **Composability Consistency**: For every ended period, every pair of chains agree on the same **ordered** set of successful composability instances that both participated.
 - **Sequentiality**: For any rollup, composability instances are executed one at a time (no overlap).
 
 **Liveness** (under partial synchrony and live SP)
-- **Superblock Progress**: Eventually, every superblock produced during a period is finalized or discarded, and a rollback is triggered. 
+
+- **Superblock Progress**: Eventually, every superblock produced during a period is finalized or discarded, and a rollback is triggered.
 
 ## Time And Periods
 
@@ -101,6 +108,7 @@ Thus, the period $k$ starts at:
 ```PeriodStart(k) = GenesisTime + k * PERIOD_DURATION```
 
 Notes:
+
 - Rollups may keep independent L2 block times; only period boundaries are common.
 - Still, rollups are abstracted from the period time logic
 since the SP will trigger them via a start message, as described below.
@@ -314,6 +322,7 @@ the current instance ends, by a `Decided` message or due to a `Vote(0)`.
 There are edge conditions by which the sequencer may reject
 the instance, immediately aborting it via a `Vote(0)`
 message. These include:
+
 1. If it receives the message for an older period or sequence number.
 2. If the period ID is higher than the current block's period ID (edge case in
 which the period advanced, but the last block for the previous period
@@ -332,6 +341,7 @@ app in the appropriate order.
 ## Informal Intuition
 
 Our building blocks are:
+
 - SCP: provides a way for sequencers to agree on including or not a request.
 - Settlement: allows constructing a valid ZKP to be posted to L1,
 given that the chains produced valid L2 blocks and agree on the mailbox state.

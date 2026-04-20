@@ -64,12 +64,6 @@ pub fn chains_from_request(xt_request: &XtRequest) -> Vec<ChainId> {
     chains
 }
 
-/// Deep-clone a slice of byte vectors.
-#[must_use]
-pub fn clone_byte_slices(src: &[Vec<u8>]) -> Vec<Vec<u8>> {
-    src.to_vec()
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -103,12 +97,5 @@ mod tests {
         assert_eq!(DecisionState::Pending.to_string(), "Pending");
         assert_eq!(DecisionState::Accepted.to_string(), "Accepted");
         assert_eq!(DecisionState::Rejected.to_string(), "Rejected");
-    }
-
-    #[test]
-    fn clone_byte_slices_works() {
-        let src = vec![vec![1, 2, 3], vec![4, 5]];
-        let cloned = clone_byte_slices(&src);
-        assert_eq!(src, cloned);
     }
 }

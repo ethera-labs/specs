@@ -9,7 +9,7 @@
 .env
 .env.local
 .env.*.local
-compose/target/
+target/
 *.log
 coverage/
 *.lcov

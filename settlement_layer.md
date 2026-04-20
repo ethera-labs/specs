@@ -24,6 +24,7 @@
 We follow a ZK approach, i.e. the validity of the state transition of the network will be proven by a ZK proof.
 To guarantee atomicity and synchronous composability, all interacting rollups must settle together in L1, i.e. in a single transaction.
 Scalability will be provided by two means:
+
 1. In parallel, each sequencer will be responsible for providing a valid ZKP about the validity of a batch of L2 blocks along with its mailbox activity.
 2. Once all proofs are received, the SP will aggregate them, ensuring their correctness, and check that the inter-rollup communication was valid. As a result, it produces a unique ZKP that can be verified on chain in constant time.
 
@@ -80,6 +81,7 @@ struct RollupStateTransition {
 ```
 
 Note that, following the batching approach, a `SuperblockBatch` object may represent the state transition of an entire batch. Namely:
+
 - `superblockNumber` is a sequential number that increases by one for each new `SuperblockBatch`.
 - `parentSuperblockBatchHash` anchors to the hash of the previous submitted `SuperblockBatch`.
 - `rollupST.l1Head` is the latest L1 head observed by the rollup, for L1 composability purposes.
@@ -124,6 +126,7 @@ This is done by any default op-succinct rollup.
 On our side, a common unique settlement contract is used for the whole network, i.e. for all rollups.
 The contract also holds a `prove` function; but, instead, it accepts a `SuperblockBatch` object along with its proof.
 The contract needs to perform the following checks:
+
 1. **Rollup Existence**: ensure that each rollup in the superblock is registered.
 2. **Base State Consistency**: ensure that the previously anchored superblock is indeed the last one submitted to L1.
 3. **Transition Validity**: verify the proof's validity, advancing to a new state.
@@ -141,6 +144,7 @@ This is done by checking that the `SuperblockBatch.parentSuperblockBatchHash` is
 **Transition Validity**
 
 To verify the proof, the contract calls the SP1 contract's verification function, providing it with:
+
 - The hash of the `SuperblockBatch` object.
 - The proof
 - The verification key of the `Network Aggregation Program`.
@@ -158,6 +162,7 @@ Once the settlement pipeline is triggered, each sequencer produces a STARK ZKP f
 
 From the op-succinct framework, this is accomplished by a [ZK Range program](https://github.com/succinctlabs/op-succinct/blob/b6a67787ba53b8f8251ce8b3ffaf0fe2d0d1294f/programs/range/ethereum/src/main.rs#L19).
 It takes as input a rkyv-serialized [`DefaultWitnessData`](https://github.com/succinctlabs/op-succinct/blob/b6a67787ba53b8f8251ce8b3ffaf0fe2d0d1294f/utils/client/src/witness/mod.rs#L45-L48) object which contains:
+
 - `PreimageStorage`: a map of `PreimageKey -> bytes` for all oracle queries the program will make, such as `L1_HEAD_KEY`, `L2_OUTPUT_ROOT_KEY`, `L2_CLAIM_KEY`, `L2_CLAIM_BLOCK_NUMBER_KEY`, and others needed at derivation/execution (headers, trie nodes, receipts, etc.).
 - `BlobData`: Ethereum DA inputs with blobs, commitments, and proofs.
 
@@ -249,6 +254,7 @@ This is accomplished by querying the mailbox contract state and validating it ag
 Following the op-succinct framework, multiple range proofs can be aggregated into a single proof.
 This is accomplished with the [ZK Aggregation program](https://github.com/succinctlabs/op-succinct/blob/b6a67787ba53b8f8251ce8b3ffaf0fe2d0d1294f/programs/aggregation/src/main.rs),
 which takes as input:
+
 - [`AggregationInputs`](https://github.com/succinctlabs/op-succinct/blob/b6a67787ba53b8f8251ce8b3ffaf0fe2d0d1294f/utils/client/src/types.rs#L8), which contains a list of `BootInfoStruct` objects (committed by the last program)
 - a list of proofs (one for each range).
 - a list of L1 headers.
@@ -320,6 +326,7 @@ flowchart LR
 In the final step, the SP runs another ZK program, `Network Aggregation Program`.
 This one doesn't belong to the op-succinct framework and is completely implemented from scratch.
 It takes as input:
+
 - A list with `AggregationOutputs` objects from the last program (each sequencer providing one).
 - A list with the respective proofs (each sequencer providing one).
 - A list of lists with elements (chain ID, inbox root, outbox root) (each sequencer providing one list).
@@ -327,19 +334,20 @@ It takes as input:
 - The previous `SuperblockBatch` (the last one published to L1, fetched by the SP).
 
 The program runs the superblock validation rules:
+
 - Rule 1: verifies that the new `sb.superblockNumber` is `previous.superblockNumber + 1`.
 - Rule 2: verifies that the new `sb.parentSuperblockBatchHash` is the hash of `previous`.
 - Rule 4: for each `rst` in `sb.rollupST`, it:
- - finds the respective `previousRst` in `previous.rollupST`.
- - verifies that `rst.l2PreRoot == previousRst.l2PostRoot`.
+- finds the respective `previousRst` in `previous.rollupST`.
+- verifies that `rst.l2PreRoot == previousRst.l2PostRoot`.
 - Rule 5: for each `AggregationOutputs` object, `b`, there must be an associated `RollupStateTransition` object, `rst`, in `sb.rollupST`, and vice-versa (two ways inclusion). For each pair, it should follow:
- - `rst.l2PreRoot == b.l2PreRoot`
- - `rst.l2PostRoot == b.l2PostRoot`
- - `rst.l2BlockNumber == b.l2BlockNumber`
- - there's a valid ZKP for `b` for the expected verification key.
+- `rst.l2PreRoot == b.l2PreRoot`
+- `rst.l2PostRoot == b.l2PostRoot`
+- `rst.l2BlockNumber == b.l2BlockNumber`
+- there's a valid ZKP for `b` for the expected verification key.
 - Rule 6: ensures mailbox consistency across all chains by checking that:
- - `C_i.inboxRoot[C_j] == C_j.outboxRoot[C_i]` for each pair of chains `C_i` and `C_j`.
- - the mailbox roots in `AggregationOutputs` are consistent with the chain-specific inbox and outbox roots.
+- `C_i.inboxRoot[C_j] == C_j.outboxRoot[C_i]` for each pair of chains `C_i` and `C_j`.
+- the mailbox roots in `AggregationOutputs` are consistent with the chain-specific inbox and outbox roots.
 
 
 Note that rule 3 is verified on-chain.
@@ -452,6 +460,7 @@ flowchart LR
 ## Superblock and L2 Block Safety Levels
 
 A Superblock has the following safety levels:
+
 - **Unsafe**: If the superblock is received through a gossip protocol.
 - **Validated**: If a proof for the superblock is received through a gossip protocol.
 - **Finalized**: If a transaction publishing the proof for the superblock is included in an L1 block.
@@ -460,7 +469,7 @@ An L2 block inherits the same safety levels.
 
 ## Soft-Confirmations
 
-Soft-confirmations are a common technique for advancing the chain state quicker, though with less confidence when compared to the *Finalized* level.
+Soft-confirmations are a common technique for advancing the chain state quicker, though with less confidence when compared to the _Finalized_ level.
 
 For example, the TEE/ZK settlement model uses TEE as quick soft-confirmations for blocks, which are later finalized with a more trustworthy ZK proof.
 
@@ -477,6 +486,7 @@ There are two main strategies for submitting state updates and their associated 
 **1. State + Proof Together**
 
 In this approach, the state and its ZKP are atomically submitted within a single transaction.
+
 - **Pros**:
   - No need to manage unverified state on-chain.
   - Simplifies contract logic (no rollback or timeout handling).
@@ -488,6 +498,7 @@ In this approach, the state and its ZKP are atomically submitted within a single
 **2. State First, Proof Later**
 
 States are published immediately, and ZKPs are submitted later within a bounded time window.
+
 - **Pros**:
   - Fast publication for visibility and reference.
   - Easier to prove the correctness of rollback and timeout logic.
@@ -507,6 +518,7 @@ Any one missing or late proof stalls everyone for the superblock proof.
 With big superblock batches and heterogeneous provers, the slowest or uncooperative chain becomes a global bottleneck.
 
 **Mitigations**
+
 - **Composability sets**. Partition per slot into independent atomic sets containing only rollups that actually reference each other in that slot. Non-interacting chains may be proven independently. This keeps sync composability where needed but avoids global coupling. On the other hand, it creates a more complex superblock management system in which there are different chains aggregations per slot.
 - **Opt-out with isolation**. If a chain fails to prove by the timeout, the set completes without that chain if it hasn't interacted with any other proved chain.
 - **Provers Market**. Anyone can generate proofs, rewarding the first valid poster from a pool.

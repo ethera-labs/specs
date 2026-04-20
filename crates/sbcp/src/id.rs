@@ -1,4 +1,4 @@
-use compose_spec::{InstanceId, PeriodId, SequenceNumber, XtRequest};
+use ethera_spec::{InstanceId, PeriodId, SequenceNumber, XtRequest};
 use sha2::{Digest, Sha256};
 
 /// Generates a deterministic instance ID by hashing:
@@ -32,7 +32,7 @@ pub fn generate_instance_id(
 
 #[cfg(test)]
 mod tests {
-    use compose_spec::{ChainId, TransactionRequest};
+    use ethera_spec::{ChainId, TransactionRequest};
 
     use super::*;
 

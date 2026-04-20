@@ -1,6 +1,6 @@
 use std::sync::Mutex;
 
-use compose_spec::{ChainId, DecisionState, Instance, StateRoot};
+use ethera_spec::{ChainId, DecisionState, Instance, StateRoot};
 use thiserror::Error;
 use tracing::{info, warn};
 
@@ -318,7 +318,7 @@ impl<E: ExecutionEngine, N: SequencerNetwork> SequencerInstance<E, N> {
 mod tests {
     use std::sync::Arc;
 
-    use compose_spec::{TransactionRequest, XtRequest};
+    use ethera_spec::{TransactionRequest, XtRequest};
 
     use super::*;
 
@@ -336,7 +336,7 @@ mod tests {
         }
     }
 
-    use compose_spec::{EthAddress, SessionId};
+    use ethera_spec::{EthAddress, SessionId};
 
     struct SimStep {
         read: Option<MailboxMessageHeader>,
@@ -446,7 +446,7 @@ mod tests {
         }
     }
 
-    use compose_spec::InstanceId;
+    use ethera_spec::InstanceId;
 
     #[test]
     fn vote_true_on_immediate_success() {

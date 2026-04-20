@@ -7,9 +7,7 @@ pub use primitives::{
 };
 
 mod instance;
-pub use instance::{
-    chains_from_request, clone_byte_slices, DecisionState, Instance, TransactionRequest, XtRequest,
-};
+pub use instance::{chains_from_request, DecisionState, Instance, TransactionRequest, XtRequest};
 
 /// Duration of a superblock period (10 Ethereum epochs = 10 * 32 * 12 seconds).
 pub const PERIOD_DURATION: Duration = Duration::from_secs(10 * 32 * 12);

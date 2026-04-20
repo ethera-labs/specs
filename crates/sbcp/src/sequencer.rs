@@ -1,6 +1,6 @@
 use std::{collections::HashMap, sync::Mutex};
 
-use compose_spec::{
+use ethera_spec::{
     InstanceId, PeriodId, SequenceNumber, SuperblockHash, SuperblockNumber, XtRequest,
 };
 use thiserror::Error;
@@ -403,7 +403,7 @@ impl<P: SequencerProver, M: SequencerMessenger> Sequencer<P, M> {
 mod tests {
     use std::sync::Arc;
 
-    use compose_spec::SuperblockHash;
+    use ethera_spec::SuperblockHash;
 
     use super::*;
 
@@ -677,12 +677,12 @@ mod tests {
         let (s, _, messenger) = new_seq_for_test(4, 5, mk_settled(2, 10));
         let req = XtRequest {
             transactions: vec![
-                compose_spec::TransactionRequest {
-                    chain_id: compose_spec::ChainId(1),
+                ethera_spec::TransactionRequest {
+                    chain_id: ethera_spec::ChainId(1),
                     transactions: vec![b"a".to_vec()],
                 },
-                compose_spec::TransactionRequest {
-                    chain_id: compose_spec::ChainId(2),
+                ethera_spec::TransactionRequest {
+                    chain_id: ethera_spec::ChainId(2),
                     transactions: vec![b"b".to_vec()],
                 },
             ],

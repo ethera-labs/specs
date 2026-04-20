@@ -1,5 +1,5 @@
 [package]
-name = "compose-spec-scp"
+name = "ethera-spec-scp"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -8,7 +8,7 @@ description = "Synchronous Composability Protocol (2PC) implementation"
 publish = false
 
 [dependencies]
-compose-spec.workspace = true
+ethera-spec.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
 

@@ -10,7 +10,10 @@
 *.swo
 
 # Rust
-compose/target/
+target/
+Cargo.lock
+**/*.rs.bk
+*.pdb
 
 # Environment
 .env

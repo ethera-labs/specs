@@ -1,5 +1,5 @@
 [package]
-name = "compose-spec-sbcp"
+name = "ethera-spec-sbcp"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -8,7 +8,7 @@ description = "Superblock Construction Protocol implementation"
 publish = false
 
 [dependencies]
-compose-spec.workspace = true
+ethera-spec.workspace = true
 sha2.workspace = true
 thiserror.workspace = true
 tracing.workspace = true

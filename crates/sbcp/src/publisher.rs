@@ -3,7 +3,7 @@ use std::{
     sync::Mutex,
 };
 
-use compose_spec::{
+use ethera_spec::{
     chains_from_request, ChainId, Instance, PeriodId, SequenceNumber, SuperblockHash,
     SuperblockNumber, XtRequest,
 };
@@ -59,7 +59,6 @@ pub trait L1Publisher: Send + Sync {
     fn publish_proof(&self, superblock_number: SuperblockNumber, proof: Vec<u8>);
 }
 
-#[allow(dead_code)]
 struct PublisherState {
     period_id: PeriodId,
     target_superblock_number: SuperblockNumber,
@@ -68,7 +67,7 @@ struct PublisherState {
     proofs: HashMap<SuperblockNumber, HashMap<ChainId, Vec<u8>>>,
     chains: HashSet<ChainId>,
     sequence_number: SequenceNumber,
-    active_chains: HashMap<ChainId, bool>,
+    active_chains: HashSet<ChainId>,
     proof_window: u64,
 }
 
@@ -116,7 +115,7 @@ impl<P: PublisherProver, M: PublisherMessenger, L: L1Publisher> Publisher<P, M, 
                 proofs: HashMap::new(),
                 chains,
                 sequence_number: SequenceNumber(0),
-                active_chains: HashMap::new(),
+                active_chains: HashSet::new(),
                 proof_window,
             }),
             prover,
@@ -280,7 +279,7 @@ impl<P: PublisherProver, M: PublisherMessenger, L: L1Publisher> Publisher<P, M, 
 
         let chains = chains_from_request(&request);
 
-        if Self::any_chain_already_active(&state.active_chains, &chains) {
+        if chains.iter().any(|c| state.active_chains.contains(c)) {
             return Err(PublisherError::CannotStartInstance);
         }
 
@@ -293,7 +292,7 @@ impl<P: PublisherProver, M: PublisherMessenger, L: L1Publisher> Publisher<P, M, 
         };
 
         for &chain_id in &chains {
-            state.active_chains.insert(chain_id, true);
+            state.active_chains.insert(chain_id);
         }
 
         info!(
@@ -312,7 +311,7 @@ impl<P: PublisherProver, M: PublisherMessenger, L: L1Publisher> Publisher<P, M, 
         let chains = instance.chains();
 
         for &chain_id in &chains {
-            if !state.active_chains.contains_key(&chain_id) {
+            if !state.active_chains.contains(&chain_id) {
                 return Err(PublisherError::ChainNotActive);
             }
         }
@@ -364,15 +363,6 @@ impl<P: PublisherProver, M: PublisherMessenger, L: L1Publisher> Publisher<P, M, 
             state.last_finalized_superblock_hash,
         );
         state.proofs.clear();
-    }
-
-    fn any_chain_already_active(
-        active_chains: &HashMap<ChainId, bool>,
-        chains: &[ChainId],
-    ) -> bool {
-        chains
-            .iter()
-            .any(|c| active_chains.get(c).copied().unwrap_or(false))
     }
 
     /// Access the internal target superblock number (for testing).
@@ -444,14 +434,14 @@ mod tests {
         }
     }
 
-    fn chain_req(chain: u64, txs: &[&[u8]]) -> compose_spec::TransactionRequest {
-        compose_spec::TransactionRequest {
+    fn chain_req(chain: u64, txs: &[&[u8]]) -> ethera_spec::TransactionRequest {
+        ethera_spec::TransactionRequest {
             chain_id: ChainId(chain),
             transactions: txs.iter().map(|t| t.to_vec()).collect(),
         }
     }
 
-    fn make_xt_request(entries: Vec<compose_spec::TransactionRequest>) -> XtRequest {
+    fn make_xt_request(entries: Vec<ethera_spec::TransactionRequest>) -> XtRequest {
         XtRequest {
             transactions: entries,
         }
