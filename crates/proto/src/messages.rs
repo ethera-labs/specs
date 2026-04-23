@@ -88,8 +88,8 @@ pub struct Decided {
 
 #[derive(Clone, PartialEq, prost::Message)]
 pub struct MailboxMessage {
-    #[prost(uint64, tag = "1")]
-    pub session_id: u64,
+    #[prost(bytes = "vec", tag = "1")]
+    pub session_id: Vec<u8>,
     #[prost(bytes = "vec", tag = "2")]
     pub instance_id: Vec<u8>,
     #[prost(uint64, tag = "3")]
@@ -97,13 +97,13 @@ pub struct MailboxMessage {
     #[prost(uint64, tag = "4")]
     pub destination_chain: u64,
     #[prost(bytes = "vec", tag = "5")]
-    pub source: Vec<u8>,
+    pub sender: Vec<u8>,
     #[prost(bytes = "vec", tag = "6")]
     pub receiver: Vec<u8>,
     #[prost(string, tag = "7")]
     pub label: String,
-    #[prost(bytes = "vec", repeated, tag = "8")]
-    pub data: Vec<Vec<u8>>,
+    #[prost(bytes = "vec", tag = "8")]
+    pub payload: Vec<u8>,
 }
 
 // ---------------------------------------------------------------------------
