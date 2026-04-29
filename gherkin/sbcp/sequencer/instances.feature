@@ -82,7 +82,7 @@ Feature: Sequencer Instance Management
   Scenario: Decided instance unlocks local transactions
     Given the sequencer "A" has a pending block tagged with period "20"
     And the sequencer "A" has an active instance "0x1"
-    When the sequencer "A" decides instance "0x1"
+    When the sequencer "A" receives Decided for instance "0x1"
     Then the sequencer "A" should unlock and process local transactions
     And the sequencer "A" should have no active instance
 
@@ -90,21 +90,18 @@ Feature: Sequencer Instance Management
   Scenario: Decided event for a different instance is rejected
     Given the sequencer "A" has a pending block tagged with period "20"
     And the sequencer "A" has an active instance "0x1"
-    When the sequencer "A" decides instance "0x2"
+    When the sequencer "A" receives Decided for instance "0x2"
     Then the attempt should fail with error:
       """
       mismatched active instance ID
       """
 
-  @sequencer @sbcp @user-requests
-  Scenario: Forwards user XTRequests to the SP
-    When a user submits an XTRequest to sequencer "A":
+  @sequencer @sbcp @instances
+  Scenario: Decided message with no active instance is rejected
+    Given the sequencer "A" has a pending block tagged with period "20"
+    And the sequencer "A" has no active instance
+    When the sequencer "A" receives Decided for instance "0x1"
+    Then the attempt should fail with error:
       """
-      1: [tx1]
-      2: [tx2]
+      no active instance
       """
-    Then the sequencer "A" should forward to the SP the XTRequest:
-        """
-        1: [tx1]
-        2: [tx2]
-        """
