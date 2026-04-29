@@ -12,7 +12,7 @@ Feature: Sequencer Period and Settlement Management
   @sequencer @sbcp @periods
   Scenario: Triggers settlement immediately when StartPeriod arrives and no block is pending
     Given the sequencer "A" is at period ID "20" targeting superblock "11"
-    And there is no a pending block for sequencer "A"
+    And there is no pending block for sequencer "A"
     And the last closed block for period "20" has header:
       | field      | value  |
       | number     | 41     |
