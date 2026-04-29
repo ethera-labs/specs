@@ -9,7 +9,7 @@ Feature: Publisher Start Instance
     And there is a chain "3" with sequencer "C"
     And there is a chain "4" with sequencer "D"
 
-  @publisher @scp @start-instance
+  @publisher @scp @start-instance @happy-path
   Scenario: Broadcasts StartInstance to all participating sequencers
     When SP starts an instance:
       """
@@ -33,7 +33,7 @@ Feature: Publisher Start Instance
       """
     And a timer for instance "0x1" should start at the shared publisher
 
-  @publisher @scp @start-instance
+  @publisher @scp @start-instance @happy-path
   Scenario: Notifies only chains referenced in the XTRequest
     When SP starts an instance:
       """
@@ -48,3 +48,4 @@ Feature: Publisher Start Instance
     And sequencer "B" should receive StartInstance with instance ID "0x2"
     And sequencer "C" should not receive StartInstance for instance "0x2"
     And sequencer "D" should not receive StartInstance for instance "0x2"
+    And a timer for instance "0x2" should start at the shared publisher
