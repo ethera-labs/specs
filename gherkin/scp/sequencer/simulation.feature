@@ -51,13 +51,13 @@ Feature: Sequencer Simulation And Mailbox Population
         2: [tx2]
       """
     When the execution engine simulates "tx1" and returns a read miss for the mailbox message header:
-      | field                | value |
-      | source_chain_id      | 2     |
-      | destination_chain_id | 1     |
-      | source               | 0xabc |
-      | receiver             | 0xdef |
-      | session_id           | 0x123 |
-      | label                | MSG   |
+      | field             | value |
+      | source_chain      | 2     |
+      | destination_chain | 1     |
+      | source            | 0xabc |
+      | receiver          | 0xdef |
+      | session_id        | 0x123 |
+      | label             | MSG   |
     Then sequencer "A" should record that mailbox message as expected for instance "0x1"
 
   @sequencer @scp @simulation @mailbox
