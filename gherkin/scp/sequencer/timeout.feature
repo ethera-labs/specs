@@ -26,6 +26,27 @@ Feature: Sequencer Timeout
       | vote        | false |
     And sequencer "A" should mark the instance "0x1" as rejected
 
+  @sequencer @scp @timeout @mailbox
+  Scenario: Votes false when timer expires while waiting for a mailbox message
+    Given sequencer "A" receives StartInstance:
+      """
+      instance_id: 0x2
+      period_id: 3
+      sequence_number: 3
+      xtrequest:
+        1: [tx1]
+        2: [tx2]
+      """
+    And the execution engine simulates "tx1" and returns a read miss for a mailbox message header
+    And sequencer "A" is waiting for the expected mailbox message for instance "0x2"
+    When the timer for instance ID "0x2" expires
+    Then sequencer "A" should publish Vote with:
+      | field       | value |
+      | instance_id | 0x2   |
+      | chain_id    | 1     |
+      | vote        | false |
+    And sequencer "A" should mark the instance "0x2" as rejected
+
   @sequencer @scp @timeout
   Scenario Outline: Ignores timer expiry after voting
     Given sequencer "A" receives StartInstance:
