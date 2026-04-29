@@ -7,8 +7,8 @@ Feature: Sequencer User Request Forwarding
     Given there is a chain "1" with sequencer "A"
     And the sequencer "A" is at period ID "20" targeting superblock "11"
 
-  @sequencer @sbcp @user-requests
-  Scenario: Forwards user XTRequests to the SP
+  @sequencer @sbcp @user-requests @happy-path
+  Scenario: Forwards user XTRequests to the SP without starting them locally
     When a user submits an XTRequest to sequencer "A":
       """
       1: [tx1]
@@ -19,3 +19,4 @@ Feature: Sequencer User Request Forwarding
       1: [tx1]
       2: [tx2]
       """
+    And the sequencer "A" should not start any instance for the request by its own until the SP starts it
