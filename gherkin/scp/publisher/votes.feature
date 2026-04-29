@@ -8,7 +8,7 @@ Feature: Publisher Vote Processing
     And there is a chain "2" with sequencer "B"
     And there is a chain "3" with sequencer "C"
 
-  @publisher @scp @votes
+  @publisher @scp @votes @happy-path
   Scenario: Accepts instance after collecting all positive votes
     Given SP started an instance:
       """
@@ -108,8 +108,8 @@ Feature: Publisher Vote Processing
       duplicated vote for chain 1
       """
 
-  @publisher @scp @votes
-  Scenario: Rejects votes from chains that are not part of the instance
+  @publisher @scp @votes @error
+  Scenario Outline: Rejects votes from chains that are not part of the instance
     Given SP started an instance:
       """
       instance_id: 0x6
@@ -120,14 +120,19 @@ Feature: Publisher Vote Processing
         2: [tx2]
       """
     When sequencer "C" publishes Vote with:
-      | field       | value |
-      | instance_id | 0x6   |
-      | chain_id    | 3     |
-      | vote        | true  |
+      | field       | value  |
+      | instance_id | 0x6    |
+      | chain_id    | 3      |
+      | vote        | <vote> |
     Then an error occurs:
       """
       vote from non-participant chain
       """
+
+    Examples:
+      | vote  |
+      | true  |
+      | false |
 
   @publisher @scp @votes @error
   Scenario: Errors when a vote arrives for an unknown instance
