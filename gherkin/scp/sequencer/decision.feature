@@ -30,7 +30,34 @@ Feature: Sequencer Decision
       | vote        | false |
     Then sequencer "A" should mark the instance "0x1" as rejected
 
-  @sequencer @scp @decision
+  @sequencer @scp @decision @mailbox @happy-path
+  Scenario: Forwards mailbox messages produced by a failing simulation before voting false
+    Given sequencer "A" receives StartInstance:
+      """
+      instance_id: 0x1
+      period_id: 2
+      sequence_number: 2
+      xtrequest:
+        1: [tx1]
+        2: [tx2]
+      """
+    When the execution engine simulates "tx1" and writes a mailbox message before failing with an error other than "Read miss":
+      | field             | value       |
+      | source_chain      | 1           |
+      | destination_chain | 2           |
+      | source            | 0xaaa       |
+      | receiver          | 0xbbb       |
+      | session_id        | 0x777       |
+      | label             | TRANSFER    |
+      | data              | [0x01,0x02] |
+    Then sequencer "A" should forward that MailboxMessage to sequencer "B" with instance ID "0x1"
+    And sequencer "A" should publish Vote with:
+      | field       | value |
+      | instance_id | 0x1   |
+      | chain_id    | 1     |
+      | vote        | false |
+
+  @sequencer @scp @decision @happy-path
   Scenario: Rejects instance when decision is false
     Given sequencer "A" receives StartInstance:
       """
@@ -84,8 +111,8 @@ Feature: Sequencer Decision
       decision true but previous vote was false is an impossible state
       """
 
-  @sequencer @scp @decision
-  Scenario Outline: Finalizes instance when decision is received from SP
+  @sequencer @scp @decision @happy-path
+  Scenario: Accepts instance when decision is true after voting true
     Given sequencer "A" receives StartInstance:
       """
       instance_id: 0x1
@@ -101,12 +128,28 @@ Feature: Sequencer Decision
       | instance_id | 0x1   |
       | chain_id    | 1     |
       | vote        | true  |
-    When sequencer "A" receives Decided for instance "0x1" with decision <decision>
-    Then sequencer "A" should mark the instance "0x1" as <outcome>
-    Examples:
-      | decision | outcome   |
-      | true     | accepted  |
-      | false    | rejected  |
+    When sequencer "A" receives Decided for instance "0x1" with decision "true"
+    Then sequencer "A" should mark the instance "0x1" as accepted
+
+  @sequencer @scp @decision @happy-path
+  Scenario: Rejects instance when decision is false even after voting true
+    Given sequencer "A" receives StartInstance:
+      """
+      instance_id: 0x1
+      period_id: 2
+      sequence_number: 2
+      xtrequest:
+        1: [tx1]
+        2: [tx2]
+      """
+    And the execution engine simulates "tx1" and returns success
+    And sequencer "A" previously published Vote with:
+      | field       | value |
+      | instance_id | 0x1   |
+      | chain_id    | 1     |
+      | vote        | true  |
+    When sequencer "A" receives Decided for instance "0x1" with decision "false"
+    Then sequencer "A" should mark the instance "0x1" as rejected
 
   @sequencer @scp @decision @happy-path
   Scenario: Does not include putInbox transactions in the block when instance is rejected
