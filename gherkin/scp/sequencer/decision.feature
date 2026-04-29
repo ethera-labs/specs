@@ -12,7 +12,7 @@ Feature: Sequencer Decision
     And there is a chain "2" with sequencer "B"
 
   @sequencer @scp @decision
-  Scenario: Rejects instance upon simulation failure
+  Scenario: Votes false upon simulation failure
     Given sequencer "A" receives StartInstance:
       """
       instance_id: 0x1
