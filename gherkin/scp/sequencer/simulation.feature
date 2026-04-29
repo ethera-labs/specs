@@ -110,17 +110,17 @@ Feature: Sequencer Simulation And Mailbox Population
         1: [tx1]
         2: [tx2]
       """
-    And sequencer "A" forwards a mailbox message with:
-      | field             | value      |
-      | source_chain      | 1          |
-      | destination_chain | 2          |
-      | source            | 0xaaa      |
-      | receiver          | 0xbbb      |
-      | session_id        | 0x777      |
-      | label             | TRANSFER   |
+    And the execution engine simulates "tx1" on the first attempt and writes a mailbox message with:
+      | field             | value       |
+      | source_chain      | 1           |
+      | destination_chain | 2           |
+      | source            | 0xaaa       |
+      | receiver          | 0xbbb       |
+      | session_id        | 0x777       |
+      | label             | TRANSFER    |
       | data              | [0x01,0x02] |
-      | instance_id       | 0x1        |
-    When the execution engine simulates "tx1" and writes the same mailbox message payload again
+    And sequencer "A" has forwarded that MailboxMessage to sequencer "B"
+    When the execution engine simulates "tx1" again and writes the same mailbox message
     Then no additional MailboxMessage should be forwarded
 
   @sequencer @scp @simulation @mailbox
