@@ -72,13 +72,13 @@ Feature: Sequencer Simulation And Mailbox Population
         2: [tx2]
       """
     When the execution engine simulates "tx1" and writes a mailbox message with:
-      | field             | value      |
-      | source_chain      | 1          |
-      | destination_chain | 2          |
-      | source            | 0xaaa      |
-      | receiver          | 0xbbb      |
-      | session_id        | 0x777      |
-      | label             | TRANSFER   |
+      | field             | value       |
+      | source_chain      | 1           |
+      | destination_chain | 2           |
+      | source            | 0xaaa       |
+      | receiver          | 0xbbb       |
+      | session_id        | 0x777       |
+      | label             | TRANSFER    |
       | data              | [0x01,0x02] |
     Then sequencer "A" should forward that MailboxMessage to sequencer "B" with instance ID "0x1"
 
@@ -94,9 +94,9 @@ Feature: Sequencer Simulation And Mailbox Population
         2: [tx2]
       """
     When the execution engine simulates "tx1" and writes the following mailbox messages:
-      | source_chain | destination_chain | source | receiver | session_id | label     | data        |
-      | 1            | 2                 | 0xaaa  | 0xbbb    | 0x777      | TRANSFER  | [0x01,0x02] |
-      | 1            | 2                 | 0xccc  | 0xddd    | 0x888      | NOTE      | [0x03]      |
+      | source_chain | destination_chain | source | receiver | session_id | label    | data        |
+      | 1            | 2                 | 0xaaa  | 0xbbb    | 0x777      | TRANSFER | [0x01,0x02] |
+      | 1            | 2                 | 0xccc  | 0xddd    | 0x888      | NOTE     | [0x03]      |
     Then sequencer "A" should forward the mailbox messages to sequencer "B" with instance ID "0x1"
 
   @sequencer @scp @simulation @mailbox @happy-path
@@ -201,3 +201,54 @@ Feature: Sequencer Simulation And Mailbox Population
       | label             | MSG2  |
     Then sequencer "A" should record the "MSG2" header as expected for instance "0x1"
     And "MSG1" should no longer be in the expected set for instance "0x1"
+
+  @sequencer @scp @simulation @mailbox @happy-path
+  Scenario: Inserts mailbox.putInbox transactions before local transactions on retry
+    Given sequencer "A" receives StartInstance:
+      """
+      instance_id: 0x1
+      period_id: 2
+      sequence_number: 2
+      xtrequest:
+        1: [tx1]
+        2: [tx2]
+      """
+    And sequencer "A" has recorded an expected mailbox message header with:
+      | field             | value |
+      | source_chain      | 2     |
+      | destination_chain | 1     |
+      | source            | 0xabc |
+      | receiver          | 0xdef |
+      | session_id        | 0x123 |
+      | label             | MSG   |
+    When sequencer "A" receives MailboxMessage with the same header and instance ID "0x1"
+    Then a mailbox.putInbox transaction "PItx" is added for the message
+    And the simulation input for instance "0x1" should be ordered as "[PItx, tx1]"
+
+  @sequencer @scp @simulation @mailbox @happy-path
+  Scenario: Votes true after a read-miss is resolved by an inbound mailbox message
+    Given sequencer "A" receives StartInstance:
+      """
+      instance_id: 0x1
+      period_id: 2
+      sequence_number: 2
+      xtrequest:
+        1: [tx1]
+        2: [tx2]
+      """
+    And the execution engine simulates "tx1" on the first attempt and returns a read miss for the mailbox message header:
+      | field             | value |
+      | source_chain      | 2     |
+      | destination_chain | 1     |
+      | source            | 0xabc |
+      | receiver          | 0xdef |
+      | session_id        | 0x123 |
+      | label             | MSG   |
+    When sequencer "A" receives MailboxMessage with the same header and instance ID "0x1"
+    And the execution engine simulates the retry with "[PItx, tx1]" and succeeds
+    Then sequencer "A" should publish Vote with:
+      | field       | value |
+      | instance_id | 0x1   |
+      | chain_id    | 1     |
+      | vote        | true  |
+    And the message should be removed from the expected set for instance "0x1"
