@@ -5,6 +5,7 @@ Feature: Sequencer Instance Management
   Furthermore, sequence numbers for instances must increase strictly within the same period.
   Only one active instance is allowed per sequencer at any time.
   Once the current instance gets decided, local transactions can be processed again and new instances are allowed.
+  An instance also ends when the sequencer itself sends Vote(0), which similarly unlocks local transactions.
   Users can submit an XTRequest to the sequencer, but the sequencer should only forward it to the SP and discard it.
   That is, only the SP is allowed to start new instances.
 
@@ -12,24 +13,29 @@ Feature: Sequencer Instance Management
     Given there is a chain "1" with sequencer "A"
     And the sequencer "A" is at period ID "20" targeting superblock "11"
 
-  @sequencer @sbcp @instances
-  Scenario: No pending block rejects StartInstance requests
+  @sequencer @sbcp @instances @happy-path
+  Scenario: StartInstance is buffered until a pending block exists
     Given the sequencer "A" has no pending block
     When the sequencer "A" receives StartInstance for:
       | field           | value |
       | instance_id     | 0x1   |
       | period_id       | 20    |
       | sequence_number | 1     |
-    Then the sequencer "A" should reject the instance by sending a vote "false" to the SP
+    Then the sequencer "A" should not start the instance yet
+    And the sequencer "A" should not send a Vote to the SP
+    And the StartInstance for instance "0x1" should be buffered
+    When the sequencer "A" begins building a new block tagged with period "20"
+    Then the sequencer "A" should process the buffered StartInstance for instance "0x1"
+    And the sequencer "A" should start the instance, register a snapshot of its state root, and lock local transactions
 
-  @sequencer @sbcp @instances
+  @sequencer @sbcp @instances @error
   Scenario Outline: Period id mismatch for instance and pending block results in rejection
     Given the sequencer "A" has a pending block tagged with period <block_period>
     When the sequencer "A" receives StartInstance for:
-      | field           | value |
-      | instance_id     | 0x1   |
-      | period_id       | <instance_period>    |
-      | sequence_number | 1     |
+      | field           | value             |
+      | instance_id     | 0x1               |
+      | period_id       | <instance_period> |
+      | sequence_number | 1                 |
     Then the sequencer "A" should reject the instance by sending a vote "false" to the SP
 
     Examples:
@@ -37,15 +43,14 @@ Feature: Sequencer Instance Management
       | 20           | 19              |
       | 20           | 21              |
 
-
-  @sequencer @sbcp @instances
+  @sequencer @sbcp @instances @error
   Scenario Outline: Old or repeated sequence numbers result in rejection
     Given the sequencer "A" has a pending block tagged with period "20"
     And the last accepted sequence number for period "20" is "<last_sequence>"
     When the sequencer "A" receives StartInstance for:
-      | field           | value |
-      | instance_id     | 0x1   |
-      | period_id       | 20    |
+      | field           | value               |
+      | instance_id     | 0x1                 |
+      | period_id       | 20                  |
       | sequence_number | <incoming_sequence> |
     Then the sequencer "A" should reject the instance by sending a vote "false" to the SP
 
@@ -54,7 +59,7 @@ Feature: Sequencer Instance Management
       | 3             | 2                 |
       | 5             | 5                 |
 
-  @sequencer @sbcp @instances
+  @sequencer @sbcp @instances @error
   Scenario: Ongoing instance makes the sequencer reject new StartInstance requests
     Given the sequencer "A" has a pending block tagged with period "20"
     And the last accepted sequence number for period "20" is "3"
@@ -66,7 +71,7 @@ Feature: Sequencer Instance Management
       | sequence_number | 4     |
     Then the sequencer "A" should reject the instance by sending a vote "false" to the SP
 
-  @sequencer @sbcp @instances
+  @sequencer @sbcp @instances @happy-path
   Scenario: Successful StartInstance locks local transactions
     Given the sequencer "A" has a pending block tagged with period "20"
     And the sequencer "A" has no active instance
@@ -77,8 +82,7 @@ Feature: Sequencer Instance Management
       | sequence_number | 4     |
     Then the sequencer "A" should start the instance, register a snapshot of its state root, and lock local transactions
 
-
-  @sequencer @sbcp @instances
+  @sequencer @sbcp @instances @happy-path
   Scenario: Decided instance unlocks local transactions
     Given the sequencer "A" has a pending block tagged with period "20"
     And the sequencer "A" has an active instance "0x1"
@@ -86,7 +90,29 @@ Feature: Sequencer Instance Management
     Then the sequencer "A" should unlock and process local transactions
     And the sequencer "A" should have no active instance
 
-  @sequencer @sbcp @instances
+  @sequencer @sbcp @instances @happy-path
+  Scenario Outline: Either Decided value ends the active instance and unlocks local transactions
+    Given the sequencer "A" has a pending block tagged with period "20"
+    And the sequencer "A" has an active instance "0x1"
+    And the sequencer "A" previously voted true for instance "0x1"
+    When the sequencer "A" receives Decided for instance "0x1" with decision "<decision>"
+    Then the sequencer "A" should unlock and process local transactions
+    And the sequencer "A" should have no active instance
+
+    Examples:
+      | decision |
+      | true     |
+      | false    |
+
+  @sequencer @sbcp @instances @happy-path
+  Scenario: Sending Vote(0) ends the active instance and unlocks local transactions
+    Given the sequencer "A" has a pending block tagged with period "20"
+    And the sequencer "A" has an active instance "0x1"
+    When the sequencer "A" sends Vote "false" for instance "0x1" to the SP
+    Then the sequencer "A" should unlock and process local transactions
+    And the sequencer "A" should have no active instance
+
+  @sequencer @sbcp @instances @error
   Scenario: Decided event for a different instance is rejected
     Given the sequencer "A" has a pending block tagged with period "20"
     And the sequencer "A" has an active instance "0x1"
@@ -96,7 +122,7 @@ Feature: Sequencer Instance Management
       mismatched active instance ID
       """
 
-  @sequencer @sbcp @instances
+  @sequencer @sbcp @instances @error
   Scenario: Decided message with no active instance is rejected
     Given the sequencer "A" has a pending block tagged with period "20"
     And the sequencer "A" has no active instance
