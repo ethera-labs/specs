@@ -16,44 +16,74 @@ Feature: Publisher Period Management
   Background:
     Given the participating chains are "1,2,3,4"
 
-  @publisher @sbcp @periods
+  @publisher @sbcp @periods @happy-path
   Scenario: Broadcasts the next StartPeriod
     Given SP is currently at period ID "10" targeting superblock "6"
     And the last finalized superblock is:
-      | field        | value |
-      | number       | 5     |
-      | hash         | 0xabc |
+      | field  | value |
+      | number | 5     |
+      | hash   | 0xabc |
     When SP starts a new period
     Then SP should broadcast StartPeriod with:
-      | field               | value |
-      | period_id           | 11     |
-      | target_superblock   | 7     |
+      | field             | value |
+      | period_id         | 11    |
+      | target_superblock | 7     |
 
-  @publisher @sbcp @periods @rollback
+  @publisher @sbcp @periods @happy-path
+  Scenario: Accepts StartPeriod when the proof window is exactly at the limit
+    Given SP is currently at period ID "30" targeting superblock "20"
+    And SP enforces a proof window of 10 periods
+    And the last finalized superblock is:
+      | field  | value |
+      | number | 10    |
+      | hash   | 0xabc |
+    When SP starts a new period
+    Then SP should broadcast StartPeriod with:
+      | field             | value |
+      | period_id         | 31    |
+      | target_superblock | 21    |
+
+  @publisher @sbcp @periods @rollback @error
   Scenario Outline: Rejects StartPeriod when the proof window would be exceeded
     Given SP is currently at period ID "30" targeting superblock "<current_superblock>"
     And SP enforces a proof window of <proof_window> periods
     And the last finalized superblock is:
-      | field  | value |
+      | field  | value                       |
       | number | <last_finalized_superblock> |
-      | hash   | 0xabc |
+      | hash   | 0xabc                       |
     When SP attempts to start a new period
     Then the attempt should fail with error:
       """
       proof window exceeded
       """
     And no StartPeriod for period "31" should be emitted
+    # The Rollback's period_id is the new period that triggered the rollback,
+    # not the period being rolled back to.
     And SP should broadcast a Rollback with:
-      | field        | value |
-      | period_id    | 31    |
-      | superblock   | <last_finalized_superblock> |
-      | hash         | 0xabc |
+      | field      | value                       |
+      | period_id  | 31                          |
+      | superblock | <last_finalized_superblock> |
+      | hash       | 0xabc                       |
     And all active instances should be cleared
     And the target superblock should reset to "<superblock_reset>"
 
     Examples:
       | proof_window | current_superblock | last_finalized_superblock | superblock_reset |
-      | 1            | 12                 | 10                          | 11               |
-      | 2            | 13                 | 10                          | 11               |
-      | 10           | 21                 | 10                          | 11               |
-      | 10           | 20                 | 9                           | 10               |
+      | 1            | 12                 | 10                        | 11               |
+      | 2            | 13                 | 10                        | 11               |
+      | 10           | 21                 | 10                        | 11               |
+      | 10           | 20                 | 9                         | 10               |
+
+  @publisher @sbcp @periods @rollback @happy-path
+  Scenario: Next StartPeriod after a rollback re-targets last_finalized + 1
+    Given SP just emitted a Rollback that reset the target superblock to "11"
+    And SP is currently at period ID "31"
+    And the last finalized superblock is:
+      | field  | value |
+      | number | 10    |
+      | hash   | 0xabc |
+    When SP starts a new period
+    Then SP should broadcast StartPeriod with:
+      | field             | value |
+      | period_id         | 32    |
+      | target_superblock | 11    |
