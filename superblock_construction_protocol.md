@@ -245,7 +245,16 @@ along with a timer with `ProofWindow` duration.
 
 According to the settlement protocol, each rollup will produce a proof and
 send it to the SP via the `Proof` message.
-Once the SP collects all proofs, it produces the superblock proof and
+The SP only accepts a proof whose `superblock_number` equals
+`last_finalized_superblock_number + 1` **and** whose `period_id` matches
+the period that produced that superblock.
+Both fields must be validated: after a rollback the same superblock number
+is rebuilt in a new period, so `superblock_number` alone does not uniquely
+identify the correct proof.
+Each chain's proof is recorded the first time it arrives for the expected
+superblock; subsequent proofs from the same chain for the same superblock
+are ignored.
+Once the SP collects all proofs for the expected superblock, it produces the superblock proof and
 publishes it to L1. Once the associated L1 event is received,
 the SP updates its settled state.
 
@@ -279,6 +288,9 @@ Note that the settlement isn't started as soon
 as the `StartPeriod` message is received,
 but rather once the last block that
 was created during the previous period is closed.
+
+If no block was produced during the previous period, the sequencer doesn't need to request a new proof from the prover. But, still, it should forward its latest existing proof to the SP, so the SP can account
+for all chains and proceed with superblock proof aggregation.
 
 Once a proof is generated, the sequencer sends it to the SP
 via the `Proof` message.
@@ -319,6 +331,10 @@ message. These include:
 which the period advanced, but the last block for the previous period
 is still being built).
 3. If it already has an active instance.
+
+`StartInstance` is only processed when there is a pending block to which
+the instance can be attached; if a `StartInstance` arrives in between blocks,
+the sequencer buffers it and processes it once the next block is opened.
 
 In case the SP is honest, the third scenario should only happen
 due to network delays (e.g., a `Decided` message gets delayed
