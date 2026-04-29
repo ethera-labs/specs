@@ -183,7 +183,7 @@ Procedure Vote(v):
 Upon timer expires and hasVoted == False:
   Vote(False)
 
-Upon receiving Decided(id, decisionFlag):
+Upon receiving Decided(id, decisionFlag) for the first time:
     decision ← decisionFlag
     if decisionFlag == True:
         add localTxs to block
