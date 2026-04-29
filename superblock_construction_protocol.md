@@ -286,6 +286,9 @@ as the `StartPeriod` message is received,
 but rather once the last block that
 was created during the previous period is closed.
 
+If no block was produced during the previous period, the sequencer doesn't need to request a new proof from the prover. But, still, it should forward its latest existing proof to the SP, so the SP can account
+for all chains and proceed with superblock proof aggregation.
+
 Once a proof is generated, the sequencer sends it to the SP
 via the `Proof` message.
 
