@@ -245,7 +245,13 @@ along with a timer with `ProofWindow` duration.
 
 According to the settlement protocol, each rollup will produce a proof and
 send it to the SP via the `Proof` message.
-Once the SP collects all proofs, it produces the superblock proof and
+The SP only accepts a proof whose `superblock_number` equals
+`last_finalized_superblock_number + 1` **and** whose `period_id` matches
+the period that produced that superblock.
+Both fields must be validated: after a rollback the same superblock number
+is rebuilt in a new period, so `superblock_number` alone does not uniquely
+identify the correct proof.
+Once the SP collects all proofs for the expected superblock, it produces the superblock proof and
 publishes it to L1. Once the associated L1 event is received,
 the SP updates its settled state.
 
