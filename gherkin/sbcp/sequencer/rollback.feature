@@ -15,7 +15,7 @@ Feature: Sequencer Rollback Handling
       | block_number      | 100    |
       | block_hash        | 0xaa01 |
 
-  @sequencer @sbcp @rollback
+  @sequencer @sbcp @rollback @error
   Scenario: Rejects rollback that does not match the settled state
     When the sequencer "A" receives Rollback:
       | field             | value  |
@@ -27,7 +27,20 @@ Feature: Sequencer Rollback Handling
       mismatched finalized state
       """
 
-  @sequencer @sbcp @rollback
+  @sequencer @sbcp @rollback @error
+  Scenario: Rejects rollback whose period_id is not greater than the current period
+    Given the sequencer "A" is at period ID "12"
+    When the sequencer "A" receives Rollback:
+      | field             | value  |
+      | superblock_number | 4      |
+      | superblock_hash   | 0x4001 |
+      | period_id         | 12     |
+    Then it should fail with error:
+      """
+      rollback period_id must be greater than current period
+      """
+
+  @sequencer @sbcp @rollback @happy-path
   Scenario: Applies rollback and clears blocks beyond the finalized superblock
     Given the sequencer "A" sealed blocks "101,102" for period "8" targeting superblock "3"
     And the sequencer "A" sealed blocks "103,104" for period "9" targeting superblock "4"
