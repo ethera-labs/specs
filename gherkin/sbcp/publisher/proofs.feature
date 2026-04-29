@@ -2,7 +2,10 @@ Feature: Publisher Settlement Proofs
   Once a period ends, sequencers produce zk proofs for their respective chains and
   submit them to the SP
   The SP collects the proofs in a sequential manner, respecting the order of superblocks.
-  Thus, only proofs for the next superblock to be proven (the one after the last finalized superblock) are accepted.
+  A proof is accepted only if both its superblock_number equals the next to be proven
+  (last_finalized_superblock_number + 1) and its period_id matches the period that produced it.
+  The dual check is required because after a rollback the same superblock number is rebuilt
+  in a new period, making period_id alone insufficient to identify the correct proof.
   Once all proofs for the next superblock to be proven are collected, the SP requests
   a superblock proof from the prover, and publishes it to L1.
   A request error triggers a rollback to the last finalized superblock.
