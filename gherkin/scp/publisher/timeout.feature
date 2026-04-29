@@ -9,7 +9,7 @@ Feature: Publisher Timeout
 
   @publisher @scp @timeout
   Scenario: Rejects instance when the timer expires before all votes are received
-    Given SP starts an instance:
+    Given SP started an instance:
       """
       instance_id: 0x8
       period_id: 14
@@ -32,21 +32,21 @@ Feature: Publisher Timeout
 
   @publisher @scp @timeout
   Scenario: Rejects instance when the timer expires before any vote is received
-    Given SP starts an instance:
+    Given SP started an instance:
       """
-      instance_id: 0x8
-      period_id: 14
-      sequence_number: 10
+      instance_id: 0x9
+      period_id: 15
+      sequence_number: 11
       xtrequest:
         1: [tx1]
         2: [tx2]
       """
-    When the SP timer expires for instance "0x8"
+    When the SP timer expires for instance "0x9"
     Then SP should publish Decided with:
       | field       | value |
-      | instance_id | 0x8   |
+      | instance_id | 0x9   |
       | decision    | false |
-    And SP should mark the instance "0x8" as rejected
+    And SP should mark the instance "0x9" as rejected
 
   @publisher @scp @timeout
   Scenario Outline: Ignores timer expiry after a decision has been published
