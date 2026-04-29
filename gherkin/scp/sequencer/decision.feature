@@ -109,6 +109,22 @@ Feature: Sequencer Decision
       | false    | rejected  |
 
   @sequencer @scp @decision
+  Scenario: Does not include putInbox transactions in the block when instance is rejected
+    Given sequencer "A" receives StartInstance:
+      """
+      instance_id: 0x2
+      period_id: 3
+      sequence_number: 3
+      xtrequest:
+        1: [tx1]
+        2: [tx2]
+      """
+    And during simulation a mailbox message was received and a mailbox.putInbox transaction "PItx" was created for instance "0x2"
+    When sequencer "A" receives Decided for instance "0x2" with decision "false"
+    Then sequencer "A" should mark the instance "0x2" as rejected
+    And sequencer "A" should not include "tx1" or the mailbox.putInbox transaction "PItx" in the block
+
+  @sequencer @scp @decision
   Scenario: Raises error when a decided instance receives a second decision
     Given sequencer "A" receives StartInstance:
       """
