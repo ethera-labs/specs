@@ -124,7 +124,7 @@ Feature: Sequencer Simulation And Mailbox Population
     Then no additional MailboxMessage should be forwarded
 
   @sequencer @scp @simulation @mailbox
-  Scenario Outline: Handles inbound mailbox messages based on expectation
+  Scenario: Queues inbound mailbox message when no expected header is recorded
     Given sequencer "A" receives StartInstance:
       """
       instance_id: 0x1
@@ -134,7 +134,31 @@ Feature: Sequencer Simulation And Mailbox Population
         1: [tx1]
         2: [tx2]
       """
-    And sequencer "A" <expected_state> an expected mailbox message header with:
+    And sequencer "A" has not recorded any expected mailbox message header for instance "0x1"
+    When sequencer "A" receives MailboxMessage with:
+      | field             | value |
+      | source_chain      | 2     |
+      | destination_chain | 1     |
+      | source            | 0xabc |
+      | receiver          | 0xdef |
+      | session_id        | 0x123 |
+      | label             | MSG   |
+      | instance_id       | 0x1   |
+    Then the message should be appended to the pending mailbox queue for instance "0x1"
+    And sequencer "A" should not start a new simulation
+
+  @sequencer @scp @simulation @mailbox
+  Scenario: Resolves inbound mailbox message matching a recorded expected header
+    Given sequencer "A" receives StartInstance:
+      """
+      instance_id: 0x1
+      period_id: 2
+      sequence_number: 2
+      xtrequest:
+        1: [tx1]
+        2: [tx2]
+      """
+    And sequencer "A" has recorded an expected mailbox message header with:
       | field             | value |
       | source_chain      | 2     |
       | destination_chain | 1     |
@@ -143,10 +167,37 @@ Feature: Sequencer Simulation And Mailbox Population
       | session_id        | 0x123 |
       | label             | MSG   |
     When sequencer "A" receives MailboxMessage with the same header and instance ID "0x1"
-    Then <storage_result>
-    And <simulation_effect>
+    Then the message is removed from the expected set
+    And a mailbox.putInbox transaction is added for the message
+    And sequencer "A" should start a new simulation
 
-    Examples:
-      | expected_state     | storage_result                                                                                                                           | simulation_effect                               |
-      | has not stored     | the message is appended to the pending mailbox queue for instance "0x1"                                                                  | sequencer "A" should not start a new simulation |
-      | has already stored | the message is removed from the expected set and pending queue, then inserted into the inbox and a mailbox.putInbox transaction is added | sequencer "A" should start a new simulation     |
+  @sequencer @scp @simulation @mailbox
+  Scenario: Records second expected header after read miss on simulation retry
+    Given sequencer "A" receives StartInstance:
+      """
+      instance_id: 0x1
+      period_id: 2
+      sequence_number: 2
+      xtrequest:
+        1: [tx1]
+        2: [tx2]
+      """
+    And the execution engine simulates "tx1" on the first attempt and returns a read miss for mailbox message header:
+      | field             | value |
+      | source_chain      | 2     |
+      | destination_chain | 1     |
+      | source            | 0xabc |
+      | receiver          | 0xdef |
+      | session_id        | 0x123 |
+      | label             | MSG1  |
+    And sequencer "A" receives the MailboxMessage matching header "MSG1" and restarts simulation
+    When the execution engine simulates "tx1" on the retry and returns a read miss for a different mailbox message header:
+      | field             | value |
+      | source_chain      | 2     |
+      | destination_chain | 1     |
+      | source            | 0xabc |
+      | receiver          | 0xdef |
+      | session_id        | 0x456 |
+      | label             | MSG2  |
+    Then sequencer "A" should record the "MSG2" header as expected for instance "0x1"
+    And "MSG1" should no longer be in the expected set for instance "0x1"
