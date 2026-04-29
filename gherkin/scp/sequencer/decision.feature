@@ -11,7 +11,7 @@ Feature: Sequencer Decision
     Given there is a chain "1" with sequencer "A"
     And there is a chain "2" with sequencer "B"
 
-  @sequencer @scp @decision
+  @sequencer @scp @decision @happy-path
   Scenario: Votes false upon simulation failure
     Given sequencer "A" receives StartInstance:
       """
@@ -44,7 +44,7 @@ Feature: Sequencer Decision
     When sequencer "A" receives Decided for instance "0x1" with decision "false"
     Then sequencer "A" should mark the instance "0x1" as rejected
 
-  @sequencer @scp @decision
+  @sequencer @scp @decision @error
   Scenario: Errors when decision true arrives without a prior vote
     Given sequencer "A" receives StartInstance:
       """
@@ -62,7 +62,7 @@ Feature: Sequencer Decision
       decision true but no vote sent is an impossible state
       """
 
-  @sequencer @scp @decision
+  @sequencer @scp @decision @error
   Scenario: Errors when decision true contradicts a prior false vote
     Given sequencer "A" receives StartInstance:
       """
@@ -108,7 +108,7 @@ Feature: Sequencer Decision
       | true     | accepted  |
       | false    | rejected  |
 
-  @sequencer @scp @decision
+  @sequencer @scp @decision @happy-path
   Scenario: Does not include putInbox transactions in the block when instance is rejected
     Given sequencer "A" receives StartInstance:
       """
@@ -124,7 +124,7 @@ Feature: Sequencer Decision
     Then sequencer "A" should mark the instance "0x2" as rejected
     And sequencer "A" should not include "tx1" or the mailbox.putInbox transaction "PItx" in the block
 
-  @sequencer @scp @decision
+  @sequencer @scp @decision @error
   Scenario: Raises error when a decided instance receives a second decision
     Given sequencer "A" receives StartInstance:
       """

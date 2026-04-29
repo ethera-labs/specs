@@ -7,7 +7,7 @@ Feature: Publisher Timeout
     Given there is a chain "1" with sequencer "A"
     And there is a chain "2" with sequencer "B"
 
-  @publisher @scp @timeout
+  @publisher @scp @timeout @error
   Scenario: Rejects instance when the timer expires before all votes are received
     Given SP started an instance:
       """
@@ -30,7 +30,7 @@ Feature: Publisher Timeout
       | decision    | false |
     And SP should mark the instance "0x8" as rejected
 
-  @publisher @scp @timeout
+  @publisher @scp @timeout @error
   Scenario: Rejects instance when the timer expires before any vote is received
     Given SP started an instance:
       """
@@ -48,7 +48,7 @@ Feature: Publisher Timeout
       | decision    | false |
     And SP should mark the instance "0x9" as rejected
 
-  @publisher @scp @timeout
+  @publisher @scp @timeout @happy-path
   Scenario Outline: Ignores timer expiry after a decision has been published
     Given SP started an instance:
       """

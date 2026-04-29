@@ -35,7 +35,7 @@ Feature: Publisher Vote Processing
       | decision    | true  |
     And SP should mark the instance "0x3" as accepted
 
-  @publisher @scp @votes
+  @publisher @scp @votes @happy-path
   Scenario: Rejects instance immediately when a vote is false
     Given SP started an instance:
       """
@@ -58,7 +58,7 @@ Feature: Publisher Vote Processing
       | decision    | false |
     And SP should mark the instance "0x4" as rejected
 
-  @publisher @scp @votes
+  @publisher @scp @votes @happy-path
   Scenario: Vote(false) rejects instance even if votes(true) were received before
     Given SP started an instance:
       """
@@ -86,7 +86,7 @@ Feature: Publisher Vote Processing
       | decision    | false |
     And SP should mark the instance "0x4" as rejected
 
-  @publisher @scp @votes
+  @publisher @scp @votes @error
   Scenario: Errors when receiving a duplicated vote from the same chain
     Given SP started an instance:
       """
@@ -129,7 +129,7 @@ Feature: Publisher Vote Processing
       vote from non-participant chain
       """
 
-  @publisher @scp @votes
+  @publisher @scp @votes @error
   Scenario: Errors when a vote arrives for an unknown instance
     When sequencer "A" publishes Vote with:
       | field       | value |
@@ -141,7 +141,7 @@ Feature: Publisher Vote Processing
       vote for unknown instance
       """
 
-  @publisher @scp @votes
+  @publisher @scp @votes @happy-path
   Scenario: Ignores votes that arrive after the instance has been decided
     Given SP started an instance:
       """
