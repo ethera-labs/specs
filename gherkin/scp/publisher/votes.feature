@@ -130,6 +130,18 @@ Feature: Publisher Vote Processing
       """
 
   @publisher @scp @votes
+  Scenario: Errors when a vote arrives for an unknown instance
+    When sequencer "A" publishes Vote with:
+      | field       | value |
+      | instance_id | 0xff  |
+      | chain_id    | 1     |
+      | vote        | true  |
+    Then an error occurs:
+      """
+      vote for unknown instance
+      """
+
+  @publisher @scp @votes
   Scenario: Ignores votes that arrive after the instance has been decided
     Given SP started an instance:
       """
