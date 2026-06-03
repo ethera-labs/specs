@@ -297,7 +297,7 @@ impl<E: ExecutionEngine, N: SequencerNetwork> SequencerInstance<E, N> {
                 dest_chain = req.dest_chain_id.get(),
                 sender = %req.sender,
                 receiver = %req.receiver,
-                session_id = req.session_id.get(),
+                session_id = %req.session_id,
                 label = %req.label,
                 "Unfulfilled mailbox request"
             );
@@ -329,7 +329,7 @@ mod tests {
                 dest_chain_id: ChainId(1),
                 sender: EthAddress([1; 20]),
                 receiver: EthAddress([2; 20]),
-                session_id: SessionId(1),
+                session_id: SessionId::from_u64(1),
                 label: label.to_string(),
             },
             data: data.to_vec(),
@@ -571,7 +571,7 @@ mod tests {
                 dest_chain_id: ChainId(1),
                 sender: EthAddress([1; 20]),
                 receiver: EthAddress([2; 20]),
-                session_id: SessionId(100),
+                session_id: SessionId::from_u64(100),
                 label: "labelA".into(),
             },
             data: vec![],
@@ -582,7 +582,7 @@ mod tests {
                 dest_chain_id: ChainId(1),
                 sender: EthAddress([1; 20]),
                 receiver: EthAddress([2; 20]),
-                session_id: SessionId(100),
+                session_id: SessionId::from_u64(100),
                 label: "labelB".into(),
             },
             data: vec![],
@@ -625,7 +625,7 @@ mod tests {
         assert_eq!(expected.len(), 1);
         assert_eq!(expected[0].source_chain_id, ChainId(2));
         assert_eq!(expected[0].dest_chain_id, ChainId(1));
-        assert_eq!(expected[0].session_id, SessionId(100));
+        assert_eq!(expected[0].session_id, SessionId::from_u64(100));
         assert_eq!(expected[0].label, "labelA");
     }
 

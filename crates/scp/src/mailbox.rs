@@ -30,7 +30,7 @@ mod tests {
                 dest_chain_id: ChainId(2),
                 sender: EthAddress([1; 20]),
                 receiver: EthAddress([2; 20]),
-                session_id: SessionId(10),
+                session_id: SessionId::from_u64(10),
                 label: "L".into(),
             },
             data: b"payload-A".to_vec(),
@@ -64,7 +64,7 @@ mod tests {
         assert_ne!(a.header, h);
 
         let mut h = a.header.clone();
-        h.session_id = SessionId(999);
+        h.session_id = SessionId::from_u64(999);
         assert_ne!(a.header, h);
 
         let mut h = a.header.clone();

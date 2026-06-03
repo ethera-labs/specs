@@ -50,8 +50,27 @@ byte_newtype!(SuperblockHash, 32);
 byte_newtype!(BlockHash, 32);
 byte_newtype!(StateRoot, 32);
 byte_newtype!(InstanceId, 32);
+byte_newtype!(SessionId, 32);
+
+impl SessionId {
+    #[must_use]
+    pub fn from_u64(v: u64) -> Self {
+        let mut bytes = [0u8; 32];
+        bytes[24..].copy_from_slice(&v.to_be_bytes());
+        Self(bytes)
+    }
+}
 
 impl fmt::Display for InstanceId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        for byte in &self.0 {
+            write!(f, "{byte:02x}")?;
+        }
+        Ok(())
+    }
+}
+
+impl fmt::Display for SessionId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         for byte in &self.0 {
             write!(f, "{byte:02x}")?;
@@ -140,7 +159,6 @@ macro_rules! numeric_newtype {
 }
 
 numeric_newtype!(ChainId);
-numeric_newtype!(SessionId);
 numeric_newtype!(PeriodId);
 numeric_newtype!(SequenceNumber);
 numeric_newtype!(SuperblockNumber);
@@ -177,5 +195,15 @@ mod tests {
         assert_eq!(a - b, SuperblockNumber(7));
         assert_eq!(a + 5, SuperblockNumber(15));
         assert_eq!(a - 2, SuperblockNumber(8));
+    }
+
+    #[test]
+    fn session_id_from_u64_and_display() {
+        let id = SessionId::from_u64(1);
+        let hex = id.to_string();
+        assert_eq!(hex.len(), 64);
+        assert!(hex.ends_with("0000000000000001"));
+
+        assert_eq!(SessionId::from_u64(0), SessionId::default());
     }
 }
