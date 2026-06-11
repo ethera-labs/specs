@@ -524,7 +524,7 @@ mod tests {
 
         seq.run().unwrap();
 
-        // Deliver B first (out of order) — should not trigger until A arrives
+        // Deliver B first (out of order) - should not trigger until A arrives
         seq.process_mailbox_message(b).unwrap();
         assert!(net.votes.lock().unwrap().is_empty());
 

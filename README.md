@@ -4,7 +4,7 @@
 # Compose Specification
 
 This repository hosts the canonical specification for
-Compose—a network of rollups that enjoys synchronous, atomic composability through the
+Compose-a network of rollups that enjoys synchronous, atomic composability through the
 shared publisher architecture.
 Such a feature is achieved by two mechanisms:
 

@@ -352,7 +352,20 @@ impl<P: PublisherProver, M: PublisherMessenger, L: L1Publisher> Publisher<P, M, 
         self.rollback();
     }
 
-    fn rollback(&self) {
+    /// Replaces the set of chains whose proofs are required to settle a superblock.
+    ///
+    /// Membership changes apply to subsequent proof-completeness checks; proofs
+    /// already collected for in-flight superblocks are kept and re-evaluated
+    /// against the new set on the next [`Self::receive_proof`].
+    pub fn update_chains(&self, chains: HashSet<ChainId>) {
+        let mut state = self.inner.lock().unwrap();
+        info!(chains = chains.len(), "Updating chain set");
+        state.chains = chains;
+    }
+
+    /// Rolls back the network to the last finalized superblock, e.g. when the
+    /// settlement pipeline fails after proof aggregation.
+    pub fn rollback(&self) {
         let mut state = self.inner.lock().unwrap();
         state.active_chains.clear();
         state.sequence_number = SequenceNumber(0);
@@ -369,6 +382,18 @@ impl<P: PublisherProver, M: PublisherMessenger, L: L1Publisher> Publisher<P, M, 
     #[must_use]
     pub fn target_superblock_number(&self) -> SuperblockNumber {
         self.inner.lock().unwrap().target_superblock_number
+    }
+
+    /// Access the current period ID.
+    #[must_use]
+    pub fn period_id(&self) -> PeriodId {
+        self.inner.lock().unwrap().period_id
+    }
+
+    /// Access the last finalized superblock number.
+    #[must_use]
+    pub fn last_finalized_superblock_number(&self) -> SuperblockNumber {
+        self.inner.lock().unwrap().last_finalized_superblock_number
     }
 
     /// Access the proofs map for a given superblock (for testing).
@@ -825,6 +850,77 @@ mod tests {
         assert_eq!(rollbacks.len(), 1);
         assert_eq!(rollbacks[0].1, SuperblockNumber(5));
         assert_eq!(rollbacks[0].2, SuperblockHash([9; 32]));
+    }
+
+    #[test]
+    fn update_chains_changes_completeness_threshold() {
+        let (pub_inst, _, prover, l1) = new_publisher_for_test(
+            10,
+            5,
+            5,
+            SuperblockHash([1; 32]),
+            0,
+            make_chain_set(&[1, 2, 3]),
+        );
+        *prover.next_proof.lock().unwrap() = b"network-proof".to_vec();
+        pub_inst.start_period().unwrap();
+        pub_inst.start_period().unwrap();
+
+        pub_inst.receive_proof(
+            PeriodId(11),
+            SuperblockNumber(6),
+            b"proof-1".to_vec(),
+            ChainId(1),
+        );
+        assert!(l1.published.lock().unwrap().is_empty());
+
+        // Shrinking the chain set to {1, 2} makes the second proof complete the set.
+        pub_inst.update_chains(make_chain_set(&[1, 2]));
+        pub_inst.receive_proof(
+            PeriodId(11),
+            SuperblockNumber(6),
+            b"proof-2".to_vec(),
+            ChainId(2),
+        );
+
+        assert_eq!(l1.published.lock().unwrap().len(), 1);
+    }
+
+    #[test]
+    fn state_accessors_track_period_and_finalized() {
+        let (pub_inst, _, _, _) =
+            new_publisher_for_test(4, 7, 7, SuperblockHash([2; 32]), 0, default_chain_set());
+
+        assert_eq!(pub_inst.period_id(), PeriodId(4));
+        assert_eq!(
+            pub_inst.last_finalized_superblock_number(),
+            SuperblockNumber(7)
+        );
+
+        pub_inst.start_period().unwrap();
+        assert_eq!(pub_inst.period_id(), PeriodId(5));
+
+        pub_inst
+            .advance_settled_state(SuperblockNumber(8), SuperblockHash([3; 32]))
+            .unwrap();
+        assert_eq!(
+            pub_inst.last_finalized_superblock_number(),
+            SuperblockNumber(8)
+        );
+    }
+
+    #[test]
+    fn public_rollback_resets_target_and_broadcasts() {
+        let (pub_inst, m, _, _) =
+            new_publisher_for_test(3, 9, 6, SuperblockHash([4; 32]), 0, default_chain_set());
+
+        pub_inst.rollback();
+
+        let rollbacks = m.rollbacks.lock().unwrap();
+        assert_eq!(rollbacks.len(), 1);
+        assert_eq!(rollbacks[0].1, SuperblockNumber(6));
+        drop(rollbacks);
+        assert_eq!(pub_inst.target_superblock_number(), SuperblockNumber(7));
     }
 
     #[test]
