@@ -42,8 +42,10 @@ pub enum PublisherError {
     ProofWrongPeriod { expected: u64, received: u64 },
     #[error("duplicate proof for chain")]
     DuplicateProof,
-    #[error("superblock proof generation failed: {0}")]
-    ProverFailed(String),
+    #[error("superblock proof aggregation already in progress")]
+    AggregationPending,
+    #[error("superblock proof does not match any pending aggregation")]
+    StaleSuperblockProof,
 }
 
 /// Outcome of a successfully accepted proof.
@@ -51,8 +53,11 @@ pub enum PublisherError {
 pub enum ProofStatus {
     /// Accepted; more chains still need to report.
     Collected { received: usize, required: usize },
-    /// All chains reported; the superblock proof was generated and published.
-    Published,
+    /// All chains reported; superblock proof generation was requested from
+    /// the prover. The result is fed back via
+    /// [`Publisher::superblock_proof_ready`] /
+    /// [`Publisher::superblock_proof_failed`].
+    AggregationRequested,
 }
 
 /// Generates and aggregates ZK proofs for a superblock.
@@ -62,12 +67,16 @@ pub trait PublisherProver: Send + Sync {
     /// Superblock network proof published to L1.
     type SuperblockProof: Send;
 
+    /// Requests generation of the superblock network proof. Proving is
+    /// long-running, so this must not block: implementations start the work
+    /// and deliver the outcome via [`Publisher::superblock_proof_ready`] or
+    /// [`Publisher::superblock_proof_failed`].
     fn request_superblock_proof(
         &self,
         superblock_number: SuperblockNumber,
         last_superblock_hash: SuperblockHash,
         proofs: HashMap<ChainId, Self::ChainProof>,
-    ) -> Result<Self::SuperblockProof, Box<dyn std::error::Error + Send + Sync>>;
+    );
 }
 
 /// Broadcasts protocol messages to connected sequencers.
@@ -108,6 +117,7 @@ struct PublisherState<Proof, N: PublisherNetwork> {
     sequence_number: SequenceNumber,
     active_chains: HashSet<ChainId>,
     instances: HashMap<InstanceId, InstanceEntry<N>>,
+    pending_aggregation: Option<SuperblockNumber>,
     proof_window: u64,
 }
 
@@ -182,6 +192,7 @@ where
                 sequence_number: SequenceNumber(0),
                 active_chains: HashSet::new(),
                 instances: HashMap::new(),
+                pending_aggregation: None,
                 proof_window,
             }),
             prover,
@@ -243,6 +254,15 @@ where
                 "Received proof from unknown chain, ignoring"
             );
             return Err(PublisherError::ProofFromUnknownChain);
+        }
+
+        if state.pending_aggregation == Some(superblock_number) {
+            warn!(
+                superblock_number = superblock_number.get(),
+                chain_id = chain_id.get(),
+                "Aggregation already in progress for superblock, ignoring"
+            );
+            return Err(PublisherError::AggregationPending);
         }
 
         if superblock_number <= state.last_finalized_superblock_number {
@@ -319,33 +339,67 @@ where
         info!(
             superblock_number = superblock_number.get(),
             chain_id = chain_id.get(),
-            "Received enough proofs, generating proof"
+            "Received enough proofs, requesting superblock proof"
         );
 
         let chain_proofs = state.proofs.remove(&superblock_number).unwrap_or_default();
         let last_superblock_hash = state.last_finalized_superblock_hash;
+        state.pending_aggregation = Some(superblock_number);
         drop(state);
 
-        match self.prover.request_superblock_proof(
-            superblock_number,
-            last_superblock_hash,
-            chain_proofs,
-        ) {
-            Ok(superblock_proof) => {
-                self.l1.publish_proof(superblock_number, superblock_proof);
-                Ok(ProofStatus::Published)
-            }
-            Err(e) => {
-                error!(
-                    err = %e,
-                    superblock_number = superblock_number.get(),
-                    chain_id = chain_id.get(),
-                    "Failed to generate network proof. Triggering rollback"
-                );
-                self.rollback();
-                Err(PublisherError::ProverFailed(e.to_string()))
-            }
+        self.prover
+            .request_superblock_proof(superblock_number, last_superblock_hash, chain_proofs);
+        Ok(ProofStatus::AggregationRequested)
+    }
+
+    /// Feeds back a superblock proof produced by the prover and publishes it
+    /// to L1. Responses for aggregations invalidated in the meantime (by a
+    /// rollback or an already settled superblock) are rejected.
+    pub fn superblock_proof_ready(
+        &self,
+        superblock_number: SuperblockNumber,
+        proof: P::SuperblockProof,
+    ) -> Result<(), PublisherError> {
+        self.take_pending_aggregation(superblock_number)?;
+
+        info!(
+            superblock_number = superblock_number.get(),
+            "Superblock proof ready, publishing to L1"
+        );
+        self.l1.publish_proof(superblock_number, proof);
+        Ok(())
+    }
+
+    /// Signals that the prover failed to produce the superblock proof.
+    /// Triggers a rollback (settlement pipeline failure).
+    pub fn superblock_proof_failed(
+        &self,
+        superblock_number: SuperblockNumber,
+    ) -> Result<(), PublisherError> {
+        self.take_pending_aggregation(superblock_number)?;
+
+        error!(
+            superblock_number = superblock_number.get(),
+            "Superblock proof generation failed. Triggering rollback"
+        );
+        self.rollback();
+        Ok(())
+    }
+
+    fn take_pending_aggregation(
+        &self,
+        superblock_number: SuperblockNumber,
+    ) -> Result<(), PublisherError> {
+        let mut state = self.inner.lock().unwrap();
+        if state.pending_aggregation != Some(superblock_number) {
+            warn!(
+                superblock_number = superblock_number.get(),
+                "Superblock proof does not match any pending aggregation, ignoring"
+            );
+            return Err(PublisherError::StaleSuperblockProof);
         }
+        state.pending_aggregation = None;
+        Ok(())
     }
 
     /// Starts a new SCP instance for the given cross-chain transaction request
@@ -466,6 +520,12 @@ where
 
         state.last_finalized_superblock_number = superblock_number;
         state.last_finalized_superblock_hash = superblock_hash;
+        if state
+            .pending_aggregation
+            .is_some_and(|sb| sb <= superblock_number)
+        {
+            state.pending_aggregation = None;
+        }
         Ok(())
     }
 
@@ -501,6 +561,7 @@ where
         state.active_chains.clear();
         state.sequence_number = SequenceNumber(0);
         state.target_superblock_number = state.last_finalized_superblock_number + 1;
+        state.pending_aggregation = None;
         self.messenger.broadcast_rollback(
             state.period_id,
             state.last_finalized_superblock_number,
@@ -583,8 +644,6 @@ mod tests {
     #[derive(Debug, Default)]
     struct FakeProver {
         calls: Mutex<Vec<ProverCall>>,
-        next_proof: Mutex<Vec<u8>>,
-        err: Mutex<Option<String>>,
     }
 
     impl PublisherProver for Arc<FakeProver> {
@@ -596,12 +655,8 @@ mod tests {
             sb: SuperblockNumber,
             hash: SuperblockHash,
             proofs: HashMap<ChainId, Vec<u8>>,
-        ) -> Result<Vec<u8>, Box<dyn std::error::Error + Send + Sync>> {
+        ) {
             self.calls.lock().unwrap().push((sb, hash, proofs));
-            if let Some(ref e) = *self.err.lock().unwrap() {
-                return Err(e.clone().into());
-            }
-            Ok(self.next_proof.lock().unwrap().clone())
         }
     }
 
@@ -1022,7 +1077,6 @@ mod tests {
             0,
             make_chain_set(&[1, 2]),
         );
-        *h.prover.next_proof.lock().unwrap() = b"network-proof".to_vec();
         h.publisher.start_period().unwrap();
         h.publisher.start_period().unwrap();
 
@@ -1042,7 +1096,7 @@ mod tests {
                 required: 2
             }
         );
-        assert!(h.l1.published.lock().unwrap().is_empty());
+        assert!(h.prover.calls.lock().unwrap().is_empty());
 
         let status = h
             .publisher
@@ -1053,7 +1107,7 @@ mod tests {
                 ChainId(2),
             )
             .unwrap();
-        assert_eq!(status, ProofStatus::Published);
+        assert_eq!(status, ProofStatus::AggregationRequested);
 
         let calls = h.prover.calls.lock().unwrap();
         assert_eq!(calls.len(), 1);
@@ -1063,6 +1117,12 @@ mod tests {
         assert_eq!(calls[0].2[&ChainId(1)], b"proof-1".to_vec());
         drop(calls);
 
+        // Nothing published until the prover responds.
+        assert!(h.l1.published.lock().unwrap().is_empty());
+        h.publisher
+            .superblock_proof_ready(SuperblockNumber(6), b"network-proof".to_vec())
+            .unwrap();
+
         let published = h.l1.published.lock().unwrap();
         assert_eq!(published.len(), 1);
         assert_eq!(published[0].0, SuperblockNumber(6));
@@ -1070,6 +1130,13 @@ mod tests {
         drop(published);
 
         assert!(h.publisher.proof_chains_for(SuperblockNumber(6)).is_none());
+
+        // A second response for the same aggregation is stale.
+        let err = h
+            .publisher
+            .superblock_proof_ready(SuperblockNumber(6), b"again".to_vec())
+            .unwrap_err();
+        assert!(matches!(err, PublisherError::StaleSuperblockProof));
     }
 
     #[test]
@@ -1127,20 +1194,9 @@ mod tests {
         assert!(matches!(err, PublisherError::DuplicateProof));
     }
 
-    #[test]
-    fn receive_proof_prover_error_triggers_rollback() {
-        let h = new_publisher_for_test(
-            10,
-            5,
-            5,
-            SuperblockHash([9; 32]),
-            0,
-            make_chain_set(&[1, 2]),
-        );
-        *h.prover.err.lock().unwrap() = Some("boom".into());
+    fn collect_full_proof_set(h: &TestHarness) {
         h.publisher.start_period().unwrap();
         h.publisher.start_period().unwrap();
-
         h.publisher
             .receive_proof(
                 PeriodId(11),
@@ -1149,7 +1205,7 @@ mod tests {
                 ChainId(1),
             )
             .unwrap();
-        let err = h
+        let status = h
             .publisher
             .receive_proof(
                 PeriodId(11),
@@ -1157,14 +1213,86 @@ mod tests {
                 b"proof-2".to_vec(),
                 ChainId(2),
             )
-            .unwrap_err();
-        assert!(matches!(err, PublisherError::ProverFailed(_)));
+            .unwrap();
+        assert_eq!(status, ProofStatus::AggregationRequested);
+    }
+
+    #[test]
+    fn superblock_proof_failed_triggers_rollback() {
+        let h = new_publisher_for_test(
+            10,
+            5,
+            5,
+            SuperblockHash([9; 32]),
+            0,
+            make_chain_set(&[1, 2]),
+        );
+        collect_full_proof_set(&h);
+
+        h.publisher
+            .superblock_proof_failed(SuperblockNumber(6))
+            .unwrap();
 
         assert!(h.l1.published.lock().unwrap().is_empty());
         let rollbacks = h.messenger.rollbacks.lock().unwrap();
         assert_eq!(rollbacks.len(), 1);
         assert_eq!(rollbacks[0].1, SuperblockNumber(5));
         assert_eq!(rollbacks[0].2, SuperblockHash([9; 32]));
+        drop(rollbacks);
+
+        // The failure already consumed the pending aggregation.
+        let err = h
+            .publisher
+            .superblock_proof_failed(SuperblockNumber(6))
+            .unwrap_err();
+        assert!(matches!(err, PublisherError::StaleSuperblockProof));
+    }
+
+    #[test]
+    fn receive_proof_rejected_while_aggregation_pending() {
+        let h = new_publisher_for_test(
+            10,
+            5,
+            5,
+            SuperblockHash([1; 32]),
+            0,
+            make_chain_set(&[1, 2]),
+        );
+        collect_full_proof_set(&h);
+
+        let err = h
+            .publisher
+            .receive_proof(
+                PeriodId(11),
+                SuperblockNumber(6),
+                b"late".to_vec(),
+                ChainId(1),
+            )
+            .unwrap_err();
+        assert!(matches!(err, PublisherError::AggregationPending));
+    }
+
+    #[test]
+    fn rollback_invalidates_pending_aggregation() {
+        let h = new_publisher_for_test(
+            10,
+            5,
+            5,
+            SuperblockHash([1; 32]),
+            0,
+            make_chain_set(&[1, 2]),
+        );
+        collect_full_proof_set(&h);
+
+        // Proof window expires while the prover is still working.
+        h.publisher.proof_timeout();
+
+        let err = h
+            .publisher
+            .superblock_proof_ready(SuperblockNumber(6), b"too-late".to_vec())
+            .unwrap_err();
+        assert!(matches!(err, PublisherError::StaleSuperblockProof));
+        assert!(h.l1.published.lock().unwrap().is_empty());
     }
 
     #[test]
@@ -1177,7 +1305,6 @@ mod tests {
             0,
             make_chain_set(&[1, 2, 3]),
         );
-        *h.prover.next_proof.lock().unwrap() = b"network-proof".to_vec();
         h.publisher.start_period().unwrap();
         h.publisher.start_period().unwrap();
 
@@ -1189,7 +1316,7 @@ mod tests {
                 ChainId(1),
             )
             .unwrap();
-        assert!(h.l1.published.lock().unwrap().is_empty());
+        assert!(h.prover.calls.lock().unwrap().is_empty());
 
         // Shrinking the chain set to {1, 2} makes the second proof complete the set.
         h.publisher.update_chains(make_chain_set(&[1, 2]));
@@ -1202,9 +1329,9 @@ mod tests {
                 ChainId(2),
             )
             .unwrap();
-        assert_eq!(status, ProofStatus::Published);
+        assert_eq!(status, ProofStatus::AggregationRequested);
 
-        assert_eq!(h.l1.published.lock().unwrap().len(), 1);
+        assert_eq!(h.prover.calls.lock().unwrap().len(), 1);
     }
 
     #[test]
