@@ -7,5 +7,11 @@ license.workspace = true
 description = "Core types for the Ethera protocol specification"
 publish = false
 
+[dependencies]
+serde = { workspace = true, optional = true }
+
+[features]
+serde = ["dep:serde"]
+
 [lints]
 workspace = true

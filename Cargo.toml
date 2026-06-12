@@ -17,6 +17,7 @@ ethera-spec-sbcp = { path = "crates/sbcp" }
 
 # External dependencies
 prost = "0.13"
+serde = { version = "1.0", default-features = false, features = ["derive"] }
 sha2 = "0.10"
 thiserror = "2"
 tracing = "0.1"

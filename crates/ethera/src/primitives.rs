@@ -10,6 +10,7 @@ use std::{
 macro_rules! byte_newtype {
     ($name:ident, $size:expr) => {
         #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+        #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
         pub struct $name(pub [u8; $size]);
 
         impl $name {
@@ -96,6 +97,7 @@ impl fmt::Display for EthAddress {
 macro_rules! numeric_newtype {
     ($name:ident) => {
         #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, PartialOrd, Ord)]
+        #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
         pub struct $name(pub u64);
 
         impl $name {
