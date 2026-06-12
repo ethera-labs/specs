@@ -4,6 +4,9 @@ pub use block::{BlockHeader, BlockNumber, PendingBlock, SealedBlockHeader, Settl
 pub mod id;
 pub use id::generate_instance_id;
 
+pub mod sequence;
+pub use sequence::{InstanceSequence, SequenceNotAdvanced};
+
 pub mod publisher;
 pub use publisher::{
     L1Publisher, ProofStatus, Publisher, PublisherError, PublisherMessenger, PublisherProver,

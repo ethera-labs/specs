@@ -7,6 +7,7 @@ use thiserror::Error;
 use tracing::{error, info};
 
 use crate::block::{BlockHeader, BlockNumber, PendingBlock, SealedBlockHeader, SettledState};
+use crate::sequence::InstanceSequence;
 
 /// Errors returned by [`Sequencer`] operations.
 #[derive(Debug, Error)]
@@ -62,7 +63,7 @@ struct SequencerState {
     target_superblock_number: SuperblockNumber,
     pending_block: Option<PendingBlock>,
     active_instance_id: Option<InstanceId>,
-    last_sequence_number: Option<SequenceNumber>,
+    instance_sequence: InstanceSequence,
     head: BlockNumber,
     sealed_block_head: HashMap<PeriodId, SealedBlockHeader>,
     settled_state: SettledState,
@@ -95,7 +96,7 @@ impl<P: SequencerProver, M: SequencerMessenger> Sequencer<P, M> {
                 target_superblock_number: target_superblock,
                 pending_block: None,
                 active_instance_id: None,
-                last_sequence_number: None,
+                instance_sequence: InstanceSequence::default(),
                 head: settled_state.block_header.number,
                 sealed_block_head: HashMap::new(),
                 settled_state,
@@ -129,7 +130,7 @@ impl<P: SequencerProver, M: SequencerMessenger> Sequencer<P, M> {
             );
             state.period_id = period_id;
             state.target_superblock_number = target_superblock_number;
-            state.last_sequence_number = None;
+            state.instance_sequence = InstanceSequence::default();
             no_pending_block = state.pending_block.is_none();
         }
 
@@ -215,13 +216,10 @@ impl<P: SequencerProver, M: SequencerMessenger> Sequencer<P, M> {
             return Err(SequencerError::PeriodIdMismatch);
         }
 
-        if let Some(last_seq) = state.last_sequence_number {
-            if sequence_number <= last_seq {
-                return Err(SequencerError::LowSequenceNumber);
-            }
-        }
-
-        state.last_sequence_number = Some(sequence_number);
+        state
+            .instance_sequence
+            .advance(sequence_number)
+            .map_err(|_| SequencerError::LowSequenceNumber)?;
 
         info!("Starting active instance, locking local tx inclusion");
         state.active_instance_id = Some(id);
