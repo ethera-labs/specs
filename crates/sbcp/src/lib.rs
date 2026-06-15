@@ -4,8 +4,8 @@ pub use block::{BlockHeader, BlockNumber, PendingBlock, SealedBlockHeader, Settl
 pub mod id;
 pub use id::generate_instance_id;
 
-pub mod sequence;
-pub use sequence::{InstanceSequence, SequenceNotAdvanced};
+pub mod order;
+pub use order::{validate_start_instance_order, StartInstanceOrderError};
 
 pub mod publisher;
 pub use publisher::{

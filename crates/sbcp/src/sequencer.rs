@@ -7,7 +7,7 @@ use thiserror::Error;
 use tracing::{error, info};
 
 use crate::block::{BlockHeader, BlockNumber, PendingBlock, SealedBlockHeader, SettledState};
-use crate::sequence::InstanceSequence;
+use crate::order::{validate_start_instance_order, StartInstanceOrderError};
 
 /// Errors returned by [`Sequencer`] operations.
 #[derive(Debug, Error)]
@@ -63,7 +63,7 @@ struct SequencerState {
     target_superblock_number: SuperblockNumber,
     pending_block: Option<PendingBlock>,
     active_instance_id: Option<InstanceId>,
-    instance_sequence: InstanceSequence,
+    last_sequence_number: Option<SequenceNumber>,
     head: BlockNumber,
     sealed_block_head: HashMap<PeriodId, SealedBlockHeader>,
     settled_state: SettledState,
@@ -96,7 +96,7 @@ impl<P: SequencerProver, M: SequencerMessenger> Sequencer<P, M> {
                 target_superblock_number: target_superblock,
                 pending_block: None,
                 active_instance_id: None,
-                instance_sequence: InstanceSequence::default(),
+                last_sequence_number: None,
                 head: settled_state.block_header.number,
                 sealed_block_head: HashMap::new(),
                 settled_state,
@@ -130,7 +130,7 @@ impl<P: SequencerProver, M: SequencerMessenger> Sequencer<P, M> {
             );
             state.period_id = period_id;
             state.target_superblock_number = target_superblock_number;
-            state.instance_sequence = InstanceSequence::default();
+            state.last_sequence_number = None;
             no_pending_block = state.pending_block.is_none();
         }
 
@@ -216,10 +216,21 @@ impl<P: SequencerProver, M: SequencerMessenger> Sequencer<P, M> {
             return Err(SequencerError::PeriodIdMismatch);
         }
 
-        state
-            .instance_sequence
-            .advance(sequence_number)
-            .map_err(|_| SequencerError::LowSequenceNumber)?;
+        validate_start_instance_order(
+            state.period_id,
+            state.last_sequence_number,
+            period_id,
+            sequence_number,
+        )
+        .map_err(|err| match err {
+            StartInstanceOrderError::SequenceNotAdvanced { .. } => {
+                SequencerError::LowSequenceNumber
+            }
+            StartInstanceOrderError::StalePeriod { .. }
+            | StartInstanceOrderError::FuturePeriod { .. } => SequencerError::PeriodIdMismatch,
+        })?;
+
+        state.last_sequence_number = Some(sequence_number);
 
         info!("Starting active instance, locking local tx inclusion");
         state.active_instance_id = Some(id);
@@ -836,5 +847,33 @@ mod tests {
                 .unwrap_err();
             assert!(matches!(err, SequencerError::LowSequenceNumber));
         }
+    }
+
+    #[test]
+    fn old_period_start_instance_is_rejected_after_period_rollover() {
+        let (s, _, _) = new_seq_for_test(9, 10, mk_settled(4, 60));
+        s.begin_block(BlockNumber(61)).unwrap();
+
+        let id = InstanceId([4; 32]);
+        s.on_start_instance(id, PeriodId(9), SequenceNumber(8))
+            .unwrap();
+        s.on_decided_instance(id).unwrap();
+
+        s.start_period(PeriodId(10), SuperblockNumber(11)).unwrap();
+
+        let err = s
+            .on_start_instance(InstanceId([5; 32]), PeriodId(9), SequenceNumber(9))
+            .unwrap_err();
+        assert!(matches!(err, SequencerError::PeriodIdMismatch));
+
+        let err = s
+            .on_start_instance(InstanceId([6; 32]), PeriodId(10), SequenceNumber(1))
+            .unwrap_err();
+        assert!(matches!(err, SequencerError::PeriodIdMismatch));
+
+        s.end_block(mk_header(61)).unwrap();
+        s.begin_block(BlockNumber(62)).unwrap();
+        s.on_start_instance(InstanceId([7; 32]), PeriodId(10), SequenceNumber(1))
+            .unwrap();
     }
 }
